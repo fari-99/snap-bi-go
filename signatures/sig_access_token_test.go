@@ -51,6 +51,13 @@ var TestConfigSigAccessTokenData = &Config{
 		"VUJMSUMgS0VZLS0tLS0=",
 }
 
+var TestConfigSigAccessTokenData_PEM = &Config{
+	ClientID:       "962489e9-de5d-4eb7-92a4-b07d44d64bf4",
+	ClientSecret:   "xS3vNQQgJRemFF0SZfXkZOq3r7kQ9n5YJgK4Wg0tVCQ=",
+	PrivateKeyPath: "./private_key_test.pem",
+	PublicKeyPath:  "./public_key_test.pem",
+}
+
 var TimestampSigAccessTokenTest, _ = time.Parse(TimestampFormat, "2020-01-01T00:00:00+07:00")
 
 var TestRequestBodySignatureAccessToken = `{
@@ -109,6 +116,27 @@ func TestBase_SignatureAccessToken_Asymmetric(t *testing.T) {
 	}
 }
 
+func TestBase_SignatureAccessToken_Asymmetric_PEM(t *testing.T) {
+	sigBase := NewBase()
+	sigBase.SetConfig(TestConfigSigAccessTokenData_PEM)
+
+	inputData := SignatureAccessTokenInput{
+		Timestamp: TimestampSigAccessTokenTest,
+	}
+
+	signature, err := sigBase.SignatureAccessToken(SignatureAlgAsymmetric, inputData)
+	if err != nil {
+		t.Fatalf("Error in SignatureAccessToken Asymmetric: %s", err.Error())
+		return
+	}
+
+	if !assert.Equal(t, SignatureAccessTokenAsymmetricResult,
+		signature.StdEncoding()) {
+		t.Fatalf("Error in SignatureAccessToken Asymmetric: signature is not the same")
+		return
+	}
+}
+
 func TestBase_SignatureAccessToken_Symmetric_Validation(t *testing.T) {
 	sigBase := NewBase()
 	sigBase.SetConfig(TestConfigSigAccessTokenData)
@@ -143,4 +171,19 @@ func TestBase_SignatureAccessToken_Asymmetric_Validation(t *testing.T) {
 	}
 }
 
-// TODO: private key using PEM files
+func TestBase_SignatureAccessToken_Asymmetric_Validation_PEM(t *testing.T) {
+	sigBase := NewBase()
+	sigBase.SetConfig(TestConfigSigAccessTokenData_PEM)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/access-token/b2b", bytes.NewBuffer([]byte(TestRequestBodySignatureAccessToken)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-TIMESTAMP", TimestampSigAccessTokenTest.Format(TimestampFormat))
+	req.Header.Set("X-CLIENT-KEY", TestConfigSigAccessTokenData_PEM.ClientID)
+	req.Header.Set("X-SIGNATURE", SignatureAccessTokenAsymmetricResult)
+
+	err := sigBase.VerifySignatureAccessToken(SignatureAlgAsymmetric, req)
+	if err != nil {
+		t.Fatalf("Error in SignatureAccessToken Symmetric: %s", err.Error())
+		return
+	}
+}

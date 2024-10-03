@@ -50,6 +50,13 @@ var TestConfigSigServiceData = &Config{
 		"VUJMSUMgS0VZLS0tLS0=",
 }
 
+var TestConfigSigServiceData_PEM = &Config{
+	ClientID:       "962489e9-de5d-4eb7-92a4-b07d44d64bf4",
+	ClientSecret:   "xS3vNQQgJRemFF0SZfXkZOq3r7kQ9n5YJgK4Wg0tVCQ=",
+	PrivateKeyPath: "./private_key_test.pem",
+	PublicKeyPath:  "./public_key_test.pem",
+}
+
 var AccessTokenTest = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhOGQ2YmVkNS05Mz" +
 	"dkLTQzZTUtYTlkMi1hYWY0ODFlZjc2YTIiLCJjbGllbnRJZCI6IjZhZTk1N2M0LTI4NjMtNDcxMy1hY2N" +
 	"lLWJhMTJkZTYzNmNmYyIsIm5iZiI6MTYxMTM4NjM4NywiZXhwIjoxNjExMzg3Mjg3LCJpYXQiOjE2MTEz" +
@@ -116,6 +123,31 @@ func TestBase_SignatureService_Asymmetric(t *testing.T) {
 	}
 }
 
+func TestBase_SignatureService_Asymmetric_PEM(t *testing.T) {
+	sigBase := NewBase()
+	sigBase.SetConfig(TestConfigSigServiceData_PEM)
+
+	inputData := SignatureServiceInput{
+		HttpMethod:  http.MethodPost,
+		Url:         "/api/v1/balance-inquiry",
+		AccessToken: AccessTokenTest,
+		RequestBody: nil,
+		Timestamp:   TimestampSigServiceTest,
+	}
+
+	signature, err := sigBase.SignatureService(SignatureAlgAsymmetric, inputData)
+	if err != nil {
+		t.Fatalf("Error in SignatureAccessToken Symmetric: %s", err.Error())
+		return
+	}
+
+	if !assert.Equal(t, SignatureServiceAsymmetricResult,
+		signature.StdEncoding()) {
+		t.Fatalf("signature is not the same")
+		return
+	}
+}
+
 func TestBase_SignatureService_Symmetric_Validation(t *testing.T) {
 	sigBase := NewBase()
 	sigBase.SetConfig(TestConfigSigAccessTokenData)
@@ -154,4 +186,21 @@ func TestBase_SignatureService_Asymmetric_Validation(t *testing.T) {
 	}
 }
 
-// TODO: private key using PEM files
+func TestBase_SignatureService_Asymmetric_Validation_PEM(t *testing.T) {
+	sigBase := NewBase()
+	sigBase.SetConfig(TestConfigSigAccessTokenData)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/balance-inquiry", nil)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-TIMESTAMP", TimestampSigAccessTokenTest.Format(TimestampFormat))
+	req.Header.Set("Authorization", "Bearer "+AccessTokenTest)
+	req.Header.Set("X-EXTERNAL-ID", time.Now().String())
+	req.Header.Set("X-SIGNATURE", SignatureServiceAsymmetricResult)
+	req.Header.Set("X-PARTNER-ID", TestConfigSigAccessTokenData.ClientID)
+
+	err := sigBase.VerifySignatureService(SignatureAlgAsymmetric, req)
+	if err != nil {
+		t.Fatalf("Error in SignatureAccessToken Symmetric: %s", err.Error())
+		return
+	}
+}
